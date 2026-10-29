@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AICTE Integrated Complaint Monitoring Dashboard (SIH26264) - Team Nexora</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- FontAwesome / Lucide Icons via CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f8fafc;
+    }
+    .tricolor-bar {
+      height: 4px;
+      background: linear-gradient(90deg, #FF9933 0%, #FF9933 33.3%, #FFFFFF 33.3%, #FFFFFF 66.6%, #138808 66.6%, #138808 100%);
+    }
+    .text-size-sm { font-size: 0.875rem; }
+    .text-size-md { font-size: 1rem; }
+    .text-size-lg { font-size: 1.125rem; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Sample Datasets
+    const COLLEGES = {
+      '1-3489201': { name: 'Delhi Institute of Engineering & Technology', state: 'Delhi', zone: 'North' },
+      '1-4501292': { name: 'Maharashtra Institute of Technology, Pune', state: 'Maharashtra', zone: 'West' },
+      '1-8930211': { name: 'Karnataka National College of Engineering, Bengaluru', state: 'Karnataka', zone: 'South' },
+      '1-7712034': { name: 'Uttar Pradesh Technical University, Lucknow', state: 'Uttar Pradesh', zone: 'North' },
+      '1-9920114': { name: 'West Bengal University of Technology, Kolkata', state: 'West Bengal', zone: 'East' },
+    };
+
+    const INITIAL_COMPLAINTS = [
+      {
+        id: 'AICTE-2026-8941',
+        instId: '1-3489201',
+        instName: 'Delhi Institute of Engineering & Technology',
+        bureau: 'Approval',
+        subject: 'Demanding unapproved caution deposit and fee extension refusal',
+        description: 'Institute is forcing final year students to pay non-refundable caution fees and threatening to withhold admit cards for upcoming examinations.',
+        urgency: 'High',
+        slaDaysLeft: 1,
+        status: 'Under Process',
+        dateSubmitted: '2026-10-28',
+        overlapFlag: true,
+        overlapWith: 'AICTE-2026-7720 (91% SBERT match)',
+        ocrStatus: 'Verified (PDF Parsed)'
+      },
+      {
+        id: 'AICTE-2026-7720',
+        instId: '1-3489201',
+        instName: 'Delhi Institute of Engineering & Technology',
+        bureau: 'Finance',
+        subject: 'Excess fee collection and withholding hostel security refund',
+        description: 'College management refused to refund caution money after graduation and added unapproved administrative fees.',
+        urgency: 'High',
+        slaDaysLeft: 3,
+        status: 'Under Review',
+        dateSubmitted: '2026-10-25',
+        overlapFlag: true,
+        overlapWith: 'AICTE-2026-8941 (91% SBERT match)',
+        ocrStatus: 'Verified (Scanned Receipt)'
+      },
+      {
+        id: 'AICTE-2026-6109',
+        instId: '1-4501292',
+        instName: 'Maharashtra Institute of Technology, Pune',
+        bureau: 'PGRC',
+        subject: 'Anti-Ragging cell non-functional in hostel premises',
+        description: 'First year students faced intimidation by seniors. No response from internal college grievance committee.',
+        urgency: 'Critical',
+        slaDaysLeft: 0,
+        status: 'Escalated to Director',
+        dateSubmitted: '2026-10-22',
+        overlapFlag: false,
+        overlapWith: null,
+        ocrStatus: 'Verified (Written Affidavit)'
+      },
+      {
+        id: 'AICTE-2026-5002',
+        instId: '1-8930211',
+        instName: 'Karnataka National College of Engineering, Bengaluru',
+        bureau: 'Legal',
+        subject: 'Infrastructure mismatch during annual approval inspection',
+        description: 'Computer science laboratories lack required GPU server capacity specified in AICTE approval handbook.',
+        urgency: 'Medium',
+        slaDaysLeft: 14,
+        status: 'Notice Issued',
+        dateSubmitted: '2026-10-15',
+        overlapFlag: false,
+        overlapWith: null,
+        ocrStatus: 'Verified'
+      }
+    ];
+
+    const RESEARCH_PAPERS = [
+      {
+        category: "Problem Validation",
+        title: "Adoption of Online Public Grievance Redressal System in India: Toward Developing a Unified View",
+        year: "2016",
+        publisher: "Elsevier / Computers in Human Behavior",
+        takeaway: "Proves that un-integrated, siloed portals cause severe tracking delays, missing case histories, and user drop-offs.",
+        link: "https://doi.org/10.1016/j.chb.2016.01.032"
+      },
+      {
+        category: "Problem Validation",
+        title: "CPGRAMS Public Grievance Redressal Reform Study & Data",
+        year: "2022",
+        publisher: "Department of Administrative Reforms and Public Grievances (Govt. of India)",
+        takeaway: "Demonstrates that replacing isolated regional complaint portals with central tracking reduced average disposal times from 157 days down to 21 days.",
+        link: "https://darpg.gov.in"
+      },
+      {
+        category: "Technical Feasibility",
+        title: "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks",
+        year: "2019",
+        publisher: "ACL Anthology / EMNLP",
+        takeaway: "Validates using dense vector similarity matching to compare text meaning and eliminate cross-bureau duplicate complaints in seconds.",
+        link: "https://aclanthology.org/D19-1410/"
+      },
+      {
+        category: "Technical Feasibility",
+        title: "Detection of Duplicate Defect Reports Using Natural Language Processing",
+        year: "2007",
+        publisher: "IEEE Transactions on Software Engineering",
+        takeaway: "Proves that automated NLP tokenization and similarity algorithms eliminate 40% to 60% of duplicate review workloads.",
+        link: "https://doi.org/10.1109/TSE.2007.1018"
+      },
+      {
+        category: "Market & Application Validation",
+        title: "AI-Powered Grievance Management System for Petition Analysis, Prioritization & Routing",
+        year: "2023",
+        publisher: "IEEE Access",
+        takeaway: "Demonstrates that multi-label transformer classifiers automatically categorize, prioritize, and route public complaints with over 92% accuracy.",
+        link: "https://doi.org/10.1109/ACCESS.2023.3289120"
+      },
+      {
+        category: "Market & Application Validation",
+        title: "Smart Complaint Routing Systems for Public Issues Using Multimodal AI",
+        year: "2024",
+        publisher: "IEEE Xplore",
+        takeaway: "Proves that replacing manual paper dispatches with automated cloud routing cuts administrative processing turnaround time by over 40%.",
+        link: "https://ieeexplore.ieee.org/document/9824201"
+      }
+    ];
+
+    function App() {
+      const [activeRole, setActiveRole] = useState('public'); // public, officer, executive, references
+      const [textSize, setTextSize] = useState('md'); // sm, md, lg
+      const [lang, setLang] = useState('EN'); // EN, HI
+
+      // Public Form State
+      const [instId, setInstId] = useState('1-3489201');
+      const [selectedBureau, setSelectedBureau] = useState('Approval');
+      const [subject, setSubject] = useState('');
+      const [description, setDescription] = useState('');
+      const [sbertAlert, setSbertAlert] = useState(null);
+      const [ocrScanning, setOcrScanning] = useState(false);
+      const [ocrParsed, setOcrParsed] = useState(false);
+      const [trackingInput, setTrackingInput] = useState('AICTE-2026-8941');
+      const [trackedCase, setTrackedCase] = useState(INITIAL_COMPLAINTS[0]);
+      const [submittedSuccess, setSubmittedSuccess] = useState(null);
+
+      // Officer View State
+      const [complaints, setComplaints] = useState(INITIAL_COMPLAINTS);
+      const [filterBureau, setFilterBureau] = useState('All');
+      const [selectedCaseModal, setSelectedCaseModal] = useState(null);
+      const [officerNote, setOfficerNote] = useState('');
+
+      // SBERT Live Detector Simulator
+      useEffect(() => {
+        const text = (subject + ' ' + description).toLowerCase();
+        if (text.includes('fee') || text.includes('deposit') || text.includes('money') || text.includes('caution')) {
+          setSbertAlert({
+            matchedId: 'AICTE-2026-7720',
+            similarity: '91.4% (Cross-Bureau Overlap Detected)',
+            bureau: 'Finance Bureau',
+            existingSubject: 'Excess fee collection and withholding hostel security refund',
+            advice: 'AI System Flag: Similar grievance filed under Finance Bureau on Oct 25. System will automatically link files.'
+          });
+        } else if (text.includes('ragging') || text.includes('harass') || text.includes('senior')) {
+          setSbertAlert({
+            matchedId: 'AICTE-2026-6109',
+            similarity: '88.7% (High Urgency Match)',
+            bureau: 'PGRC Cell',
+            existingSubject: 'Anti-Ragging cell non-functional in hostel premises',
+            advice: 'Critical Priority: Auto-tagged for Immediate Regional Director Escalation.'
+          });
+        } else {
+          setSbertAlert(null);
+        }
+      }, [subject, description]);
+
+      // Handle OCR Simulation
+      const handleFileUpload = (e) => {
+        if (!e.target.files[0]) return;
+        setOcrScanning(true);
+        setOcrParsed(false);
+        setTimeout(() => {
+          setOcrScanning(false);
+          setOcrParsed(true);
+        }, 1200);
+      };
+
+      // Handle Submit Form
+      const handleSubmitGrievance = (e) => {
+        e.preventDefault();
+        const newId = `AICTE-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        const college = COLLEGES[instId] || { name: 'Unknown Institution', state: 'Delhi', zone: 'North' };
+        
+        const newRecord = {
+          id: newId,
+          instId,
+          instName: college.name,
+          bureau: selectedBureau,
+          subject,
+          description,
+          urgency: sbertAlert ? 'High' : 'Medium',
+          slaDaysLeft: 15,
+          status: 'Under Review',
+          dateSubmitted: '2026-10-30',
+          overlapFlag: !!sbertAlert,
+          overlapWith: sbertAlert ? `${sbertAlert.matchedId} (${sbertAlert.similarity})` : null,
+          ocrStatus: ocrParsed ? 'Verified (Tesseract OCR)' : 'Direct Submission'
+        };
+
+        setComplaints([newRecord, ...complaints]);
+        setSubmittedSuccess(newRecord);
+        setSubject('');
+        setDescription('');
+        setOcrParsed(false);
+      };
+
+      // Search Tracked Case
+      const handleSearchTrack = (e) => {
+        e.preventDefault();
+        const found = complaints.find(c => c.id.trim().toUpperCase() === trackingInput.trim().toUpperCase());
+        setTrackedCase(found || null);
+      };
+
+      const selectedCollege = COLLEGES[instId] || null;
+
+      // Filtered Officer Complaints
+      const filteredComplaints = complaints.filter(c => {
+        if (filterBureau === 'All') return true;
+        return c.bureau === filterBureau;
+      });
+
+      return (
+        <div className={`min-h-screen text-slate-800 text-size-${textSize}`}>
+          
+          {/* Top Accessibility Bar */}
+          <div className="bg-slate-900 text-slate-200 px-4 py-1.5 text-xs flex justify-between items-center border-b border-slate-800">
+            <div className="flex items-center space-x-3">
+              <span className="font-semibold text-amber-400">GOVERNMENT OF INDIA</span>
+              <span className="text-slate-500">|</span>
+              <span>All India Council for Technical Education (AICTE)</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-1 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                <span className="text-slate-400 mr-1">Text Size:</span>
+                <button onClick={() => setTextSize('sm')} className={`px-1 rounded ${textSize === 'sm' ? 'bg-amber-500 text-slate-950 font-bold' : 'hover:text-white'}`}>A-</button>
+                <button onClick={() => setTextSize('md')} className={`px-1 rounded ${textSize === 'md' ? 'bg-amber-500 text-slate-950 font-bold' : 'hover:text-white'}`}>A</button>
+                <button onClick={() => setTextSize('lg')} className={`px-1 rounded ${textSize === 'lg' ? 'bg-amber-500 text-slate-950 font-bold' : 'hover:text-white'}`}>A+</button>
+              </div>
+              <div className="flex items-center space-x-1">
+                <button onClick={() => setLang('EN')} className={`px-1.5 py-0.5 text-xs rounded ${lang === 'EN' ? 'bg-blue-700 text-white font-bold' : 'text-slate-400'}`}>English</button>
+                <button onClick={() => setLang('HI')} className={`px-1.5 py-0.5 text-xs rounded ${lang === 'HI' ? 'bg-blue-700 text-white font-bold' : 'text-slate-400'}`}>हिंदी</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Government Banner Header */}
+          <header className="bg-[#0B2545] text-white shadow-md">
+            <div className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-full bg-white text-[#0B2545] flex items-center justify-center font-black text-xl shadow border-2 border-amber-400">
+                  <i className="fa-solid fa-building-columns"></i>
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    {lang === 'EN' ? 'AICTE Integrated Complaint Monitoring Portal' : 'अखिल भारतीय तकनीकी शिक्षा परिषद - शिकायत पोर्टल'}
+                    <span className="bg-amber-500 text-slate-950 text-xs px-2 py-0.5 rounded font-bold uppercase tracking-wider">SIH26264</span>
+                  </h1>
+                  <p className="text-xs text-slate-300">
+                    Single-Window Cross-Bureau Intelligence & Overlap Detection System | Team Nexora
+                  </p>
+                </div>
+              </div>
+
+              {/* Role Navigation Switcher Tabs */}
+              <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-700/80 text-xs">
+                <button
+                  onClick={() => setActiveRole('public')}
+                  className={`px-3 py-2 rounded-md font-medium transition flex items-center gap-2 ${
+                    activeRole === 'public' ? 'bg-amber-500 text-slate-950 font-bold shadow' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <i className="fa-solid fa-user-pen"></i>
+                  {lang === 'EN' ? 'Public Portal' : 'नागरिक पोर्टल'}
+                </button>
+                <button
+                  onClick={() => setActiveRole('officer')}
+                  className={`px-3 py-2 rounded-md font-medium transition flex items-center gap-2 ${
+                    activeRole === 'officer' ? 'bg-amber-500 text-slate-950 font-bold shadow' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <i className="fa-solid fa-user-shield"></i>
+                  {lang === 'EN' ? 'Bureau Officer' : 'अधिकारी डैशबोर्ड'}
+                </button>
+                <button
+                  onClick={() => setActiveRole('executive')}
+                  className={`px-3 py-2 rounded-md font-medium transition flex items-center gap-2 ${
+                    activeRole === 'executive' ? 'bg-amber-500 text-slate-950 font-bold shadow' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <i className="fa-solid fa-chart-line"></i>
+                  {lang === 'EN' ? 'Executive Command' : 'वरिष्ठ कमान'}
+                </button>
+                <button
+                  onClick={() => setActiveRole('references')}
+                  className={`px-3 py-2 rounded-md font-medium transition flex items-center gap-2 ${
+                    activeRole === 'references' ? 'bg-amber-500 text-slate-950 font-bold shadow' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <i className="fa-solid fa-book-bookmark"></i>
+                  {lang === 'EN' ? 'Research Base' : 'शोध संदर्भ'}
+                </button>
+              </div>
+            </div>
+            <div className="tricolor-bar"></div>
+          </header>
+
+          {/* Main Body Content */}
+          <main className="max-w-7xl mx-auto px-4 py-6">
+
+            {/* PUBLIC / COMPLAINANT PORTAL */}
+            {activeRole === 'public' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Left Side: Submit Form */}
+                <div className="lg:col-span-7 bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                  <div className="border-b border-slate-200 pb-3 mb-4 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <i className="fa-solid fa-file-circle-plus text-blue-900"></i>
+                      Lodge Institutional Grievance
+                    </h2>
+                    <span className="text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded border">Direct AICTE Routing</span>
+                  </div>
+
+                  <form onSubmit={handleSubmitGrievance} className="space-y-4 text-xs">
+                    
+                    {/* College ID Lookup */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Permanent Institution ID <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          value={instId}
+                          onChange={(e) => setInstId(e.target.value)}
+                          className="w-full p-2.5 border border-slate-300 rounded font-mono text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-900"
+                        >
+                          <option value="1-3489201">1-3489201 (Delhi Inst. of Tech, Delhi)</option>
+                          <option value="1-4501292">1-4501292 (Maharashtra Inst. of Tech, Pune)</option>
+                          <option value="1-8930211">1-8930211 (Karnataka National Coll., B'luru)</option>
+                          <option value="1-7712034">1-7712034 (UP Tech Univ., Lucknow)</option>
+                          <option value="1-9920114">1-9920114 (West Bengal Univ. of Tech)</option>
+                        </select>
+                      </div>
+                      {selectedCollege && (
+                        <div className="mt-2 p-2 bg-blue-50/80 border border-blue-200 rounded text-blue-950 flex justify-between">
+                          <span><strong>Verified Name:</strong> {selectedCollege.name}</span>
+                          <span className="font-semibold text-blue-900">{selectedCollege.zone} Zone ({selectedCollege.state})</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Target Bureau Selection */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Target AICTE Bureau</label>
+                        <select
+                          value={selectedBureau}
+                          onChange={(e) => setSelectedBureau(e.target.value)}
+                          className="w-full p-2.5 border border-slate-300 rounded bg-white"
+                        >
+                          <option value="Approval">Approval Bureau</option>
+                          <option value="Finance">Finance & Grants Bureau</option>
+                          <option value="PGRC">Public Grievance Cell (PGRC)</option>
+                          <option value="Legal">Legal & Regulatory Bureau</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Grievance Category</label>
+                        <select className="w-full p-2.5 border border-slate-300 rounded bg-white">
+                          <option>Excess Fee / Refund Delay</option>
+                          <option>Anti-Ragging / Student Safety</option>
+                          <option>Faculty Salary & Service Misconduct</option>
+                          <option>Unapproved Courses / Infrastructure Mismatch</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Subject */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Grievance Subject / Short Summary <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Demanding unapproved caution deposit for exam admit card"
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded"
+                      />
+                    </div>
+
+                    {/* Detailed Description */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Detailed Grievance Description <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        required
+                        rows="3"
+                        placeholder="Type complete details. Type words like 'fee refund', 'caution money', or 'ragging' to test real-time SBERT AI deduplication..."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded"
+                      ></textarea>
+                    </div>
+
+                    {/* LIVE SBERT AI OVERLAP WARNING BADGE */}
+                    {sbertAlert && (
+                      <div className="p-3 bg-amber-50 border-l-4 border-amber-500 text-amber-900 rounded shadow-sm transition">
+                        <div className="flex items-center justify-between font-bold text-xs mb-1">
+                          <span className="flex items-center gap-1.5 text-amber-950">
+                            <i className="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                            SBERT AI Live Cross-Bureau Overlap Flag
+                          </span>
+                          <span className="bg-amber-200 text-amber-950 px-2 py-0.5 rounded text-[10px]">
+                            {sbertAlert.similarity}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-800 mb-1">
+                          <strong>Matching Case:</strong> {sbertAlert.matchedId} ({sbertAlert.bureau}) - <em>"{sbertAlert.existingSubject}"</em>
+                        </p>
+                        <p className="text-[11px] font-medium text-amber-900">
+                          {sbertAlert.advice}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* OCR Document Scanner Simulator */}
+                    <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-semibold text-slate-700 block">Supporting PDF / Evidence Upload</span>
+                          <span className="text-[11px] text-slate-500">Auto-parsed using Tesseract OCR Pipeline</span>
+                        </div>
+                        <label className="bg-slate-800 text-white px-3 py-1.5 rounded cursor-pointer hover:bg-slate-900 text-xs font-medium">
+                          Choose File
+                          <input type="file" className="hidden" onChange={handleFileUpload} />
+                        </label>
+                      </div>
+
+                      {ocrScanning && (
+                        <div className="mt-2 text-blue-900 font-semibold flex items-center gap-2">
+                          <i className="fa-solid fa-spinner fa-spin"></i>
+                          Running Tesseract OCR text extraction on scanned attachment...
+                        </div>
+                      )}
+
+                      {ocrParsed && (
+                        <div className="mt-2 text-emerald-800 bg-emerald-50 p-2 rounded border border-emerald-200 text-[11px] flex items-center justify-between">
+                          <span><i className="fa-solid fa-circle-check mr-1 text-emerald-600"></i> OCR Text Parsed & Stored in PostgreSQL pgvector.</span>
+                          <span className="font-bold">100% Readable</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-[#0B2545] hover:bg-slate-900 text-white font-bold py-3 px-4 rounded shadow transition flex items-center justify-center gap-2 text-sm"
+                    >
+                      <i className="fa-solid fa-[#0B2545] fa-paper-plane text-amber-400"></i>
+                      Submit Official Grievance to AICTE Portal
+                    </button>
+
+                  </form>
+                </div>
+
+                {/* Right Side: Track Status & Lifecycle */}
+                <div className="lg:col-span-5 space-y-6">
+                  
+                  {/* Track Box */}
+                  <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <h3 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+                      <i className="fa-solid fa-[#0B2545] fa-magnifying-glass text-blue-900"></i>
+                      Track Existing Complaint
+                    </h3>
+                    <form onSubmit={handleSearchTrack} className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={trackingInput}
+                        onChange={(e) => setTrackingInput(e.target.value)}
+                        placeholder="Enter ID e.g. AICTE-2026-8941"
+                        className="w-full p-2 border border-slate-300 rounded text-xs uppercase font-mono"
+                      />
+                      <button type="submit" className="bg-blue-900 text-white px-4 py-2 rounded text-xs font-bold hover:bg-slate-900">
+                        Search
+                      </button>
+                    </form>
+
+                    {trackedCase ? (
+                      <div className="p-3 bg-slate-50 border rounded text-xs space-y-2">
+                        <div className="flex justify-between font-bold">
+                          <span className="text-blue-900 font-mono">{trackedCase.id}</span>
+                          <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[10px]">
+                            SLA: {trackedCase.slaDaysLeft} Days Left
+                          </span>
+                        </div>
+                        <p className="font-semibold text-slate-800">{trackedCase.subject}</p>
+                        <p className="text-slate-600"><strong>Bureau:</strong> {trackedCase.bureau} Bureau</p>
+                        <p className="text-slate-600"><strong>Status:</strong> <span className="font-semibold text-blue-900">{trackedCase.status}</span></p>
+
+                        {/* Interactive Timeline Lifecycle */}
+                        <div className="pt-2 border-t border-slate-200 mt-2">
+                          <span className="font-bold text-[11px] text-slate-700 block mb-2">Lifecycle Stage:</span>
+                          <div className="flex justify-between items-center text-[10px] text-center">
+                            <div className="flex-1 text-emerald-700 font-bold"><i className="fa-solid fa-circle-check block text-sm"></i> Filed</div>
+                            <div className="w-6 h-0.5 bg-emerald-500"></div>
+                            <div className="flex-1 text-emerald-700 font-bold"><i className="fa-solid fa-circle-check block text-sm"></i> OCR Verified</div>
+                            <div className="w-6 h-0.5 bg-emerald-500"></div>
+                            <div className="flex-1 text-blue-900 font-bold"><i className="fa-solid fa-spinner fa-spin block text-sm"></i> SBERT Match</div>
+                            <div className="w-6 h-0.5 bg-slate-300"></div>
+                            <div className="flex-1 text-slate-400"><i className="fa-regular fa-circle block text-sm"></i> Disposed</div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-600">No complaint record found matching that ID.</p>
+                    )}
+                  </div>
+
+                  {/* Portal Instructions */}
+                  <div className="bg-slate-100 p-4 rounded-lg border border-slate-300 text-xs text-slate-700 space-y-2">
+                    <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <i className="fa-solid fa-circle-info text-amber-600"></i>
+                      AICTE Single-Window Workflow Features
+                    </h4>
+                    <ul className="list-disc pl-4 space-y-1 text-slate-600">
+                      <li><strong>Automated Permanent ID Mapping:</strong> Every complaint is tied to the official college ID to maintain a permanent risk scorecard.</li>
+                      <li><strong>Sentence-BERT Deduplication:</strong> Prevents multiple officers in different bureaus from acting independently on duplicate filings.</li>
+                      <li><strong>Time-Bound SLA Tracking:</strong> Automatic reminders and escalation triggers if a bureau fails to resolve within statutory timelines.</li>
+                    </ul>
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+            {/* BUREAU OFFICER PORTAL */}
+            {activeRole === 'officer' && (
+              <div className="space-y-4">
+                
+                {/* Officer Workbench Controls */}
+                <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-wrap justify-between items-center gap-4 text-xs">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <i className="fa-solid fa-user-shield text-blue-900"></i>
+                      Bureau Officer Action Workbench
+                    </h2>
+                    <p className="text-slate-500">Filter and resolve complaints assigned to your department</p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-slate-700">Filter Bureau:</span>
+                    {['All', 'Approval', 'Finance', 'PGRC', 'Legal'].map(b => (
+                      <button
+                        key={b}
+                        onClick={() => setFilterBureau(b)}
+                        className={`px-3 py-1.5 rounded font-medium border transition ${
+                          filterBureau === b ? 'bg-blue-900 text-white border-blue-900' : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Table of Complaints */}
+                <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden text-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px]">
+                        <tr>
+                          <th className="p-3">Case ID</th>
+                          <th className="p-3">Institution</th>
+                          <th className="p-3">Bureau</th>
+                          <th className="p-3">Subject</th>
+                          <th className="p-3">SLA Days</th>
+                          <th className="p-3">SBERT Overlap Flag</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {filteredComplaints.map(item => (
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-3 font-mono font-bold text-blue-900">{item.id}</td>
+                            <td className="p-3">
+                              <span className="font-semibold block">{item.instName}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">ID: {item.instId}</span>
+                            </td>
+                            <td className="p-3">
+                              <span className="bg-slate-100 border px-2 py-0.5 rounded font-medium text-slate-800">
+                                {item.bureau}
+                              </span>
+                            </td>
+                            <td className="p-3 max-w-xs truncate">{item.subject}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded font-bold ${
+                                item.slaDaysLeft <= 1 ? 'bg-red-100 text-red-800 border border-red-300' :
+                                item.slaDaysLeft <= 5 ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                                'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              }`}>
+                                {item.slaDaysLeft} Days Left
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              {item.overlapFlag ? (
+                                <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-bold flex items-center gap-1 w-fit">
+                                  <i className="fa-solid fa-triangle-exclamation"></i>
+                                  Overlap Found
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">Unique</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <span className="font-bold text-blue-900">{item.status}</span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={() => setSelectedCaseModal(item)}
+                                className="bg-[#0B2545] hover:bg-slate-900 text-white px-3 py-1.5 rounded font-semibold transition"
+                              >
+                                Review & Action
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* MODAL ACTION FOR OFFICER */}
+                {selectedCaseModal && (
+                  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full border border-slate-300 text-xs overflow-hidden">
+                      <div className="bg-[#0B2545] text-white p-4 flex justify-between items-center">
+                        <div>
+                          <h3 className="font-bold text-sm">Grievance Case Processing - {selectedCaseModal.id}</h3>
+                          <p className="text-[11px] text-slate-300">{selectedCaseModal.instName}</p>
+                        </div>
+                        <button onClick={() => setSelectedCaseModal(null)} className="text-slate-300 hover:text-white font-bold text-lg">&times;</button>
+                      </div>
+
+                      <div className="p-5 space-y-4">
+                        <div className="p-3 bg-slate-50 border rounded space-y-1">
+                          <p><strong>Subject:</strong> {selectedCaseModal.subject}</p>
+                          <p><strong>Detailed Description:</strong> {selectedCaseModal.description}</p>
+                          <p><strong>OCR Attachment Status:</strong> {selectedCaseModal.ocrStatus}</p>
+                        </div>
+
+                        {selectedCaseModal.overlapFlag && (
+                          <div className="p-3 bg-amber-50 border-l-4 border-amber-500 text-amber-900 rounded">
+                            <span className="font-bold block mb-1">
+                              <i className="fa-solid fa-triangle-exclamation mr-1"></i>
+                              Cross-Bureau Overlap Details:
+                            </span>
+                            <p className="text-[11px]">{selectedCaseModal.overlapWith}</p>
+                            <p className="text-[10px] text-amber-800 mt-1">
+                              Note: Joint order can be issued with Finance Bureau to avoid contradictory rulings.
+                            </p>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">Update Status</label>
+                          <select className="w-full p-2 border border-slate-300 rounded bg-white">
+                            <option>Under Active Investigation</option>
+                            <option>Show-Cause Notice Issued to College</option>
+                            <option>Directives Issued & Case Disposed</option>
+                            <option>Dismissed (Invalid/Sub-Judice)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 mb-1">Officer Notes / Order Remarks</label>
+                          <textarea
+                            rows="3"
+                            value={officerNote}
+                            onChange={(e) => setOfficerNote(e.target.value)}
+                            placeholder="Enter official investigation notes and directive order numbers..."
+                            className="w-full p-2 border border-slate-300 rounded"
+                          ></textarea>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t">
+                          <button
+                            onClick={() => setSelectedCaseModal(null)}
+                            className="px-4 py-2 border border-slate-300 text-slate-700 rounded hover:bg-slate-100 font-semibold"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              alert(`Case ${selectedCaseModal.id} updated successfully! Audit log created.`);
+                              setSelectedCaseModal(null);
+                            }}
+                            className="px-4 py-2 bg-emerald-700 text-white rounded hover:bg-emerald-800 font-bold"
+                          >
+                            Save & Dispatch Directive
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* EXECUTIVE COMMAND CENTER */}
+            {activeRole === 'executive' && (
+              <div className="space-y-6">
+                
+                {/* Executive KPIs */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-500 block font-semibold">Total Complaints Filed</span>
+                      <span className="text-2xl font-black text-slate-900">1,248</span>
+                      <span className="text-[10px] text-emerald-600 font-bold block mt-0.5"> Across 10 Regional Offices</span>
+                    </div>
+                    <div className="w-10 h-10 rounded bg-blue-50 text-blue-900 flex items-center justify-center font-bold text-lg">
+                      <i className="fa-solid fa-inbox"></i>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-500 block font-semibold">Disposal Rate</span>
+                      <span className="text-2xl font-black text-emerald-700">84.2%</span>
+                      <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">+14% vs Previous Quarter</span>
+                    </div>
+                    <div className="w-10 h-10 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-lg">
+                      <i className="fa-solid fa-chart-line"></i>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-500 block font-semibold">SBERT Overlaps Flagged</span>
+                      <span className="text-2xl font-black text-amber-700">186</span>
+                      <span className="text-[10px] text-amber-700 font-bold block mt-0.5">Prevented Duplicate Rulings</span>
+                    </div>
+                    <div className="w-10 h-10 rounded bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-lg">
+                      <i className="fa-solid fa-code-merge"></i>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-500 block font-semibold">SLA Compliance Rate</span>
+                      <span className="text-2xl font-black text-blue-900">91.5%</span>
+                      <span className="text-[10px] text-blue-800 font-bold block mt-0.5">&lt; 15 Days Resolution Avg</span>
+                    </div>
+                    <div className="w-10 h-10 rounded bg-purple-50 text-purple-900 flex items-center justify-center font-bold text-lg">
+                      <i className="fa-solid fa-clock-check"></i>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Institution Risk Scorecard */}
+                <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm text-xs">
+                  <h3 className="font-bold text-base text-slate-900 mb-3 flex items-center gap-2">
+                    <i className="fa-solid fa-shield-cat text-amber-600"></i>
+                    Institution Risk Scorecard (AICTE Compliance Monitoring)
+                  </h3>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-100 border-b text-slate-700 font-bold text-[11px]">
+                        <tr>
+                          <th className="p-2.5">Institution Name & Permanent ID</th>
+                          <th className="p-2.5">Total Complaints</th>
+                          <th className="p-2.5">Critical Urgency</th>
+                          <th className="p-2.5">Risk Rating</th>
+                          <th className="p-2.5">Recommended Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y text-xs">
+                        <tr>
+                          <td className="p-2.5 font-semibold">Delhi Institute of Engineering & Technology (1-3489201)</td>
+                          <td className="p-2.5 font-mono">14 Cases</td>
+                          <td className="p-2.5 text-red-600 font-bold">4 Cases</td>
+                          <td className="p-2.5"><span className="bg-red-100 text-red-800 border border-red-300 px-2 py-0.5 rounded font-bold">HIGH RISK</span></td>
+                          <td className="p-2.5 text-slate-600">Surprise Physical Inspection Recommended</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2.5 font-semibold">Maharashtra Institute of Technology, Pune (1-4501292)</td>
+                          <td className="p-2.5 font-mono">8 Cases</td>
+                          <td className="p-2.5 text-amber-600 font-bold">2 Cases</td>
+                          <td className="p-2.5"><span className="bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded font-bold">MODERATE</span></td>
+                          <td className="p-2.5 text-slate-600">PGRC Audit Reminder Dispatched</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2.5 font-semibold">Karnataka National College of Eng, B'luru (1-8930211)</td>
+                          <td className="p-2.5 font-mono">2 Cases</td>
+                          <td className="p-2.5 text-emerald-600 font-bold">0 Cases</td>
+                          <td className="p-2.5"><span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded font-bold">LOW RISK</span></td>
+                          <td className="p-2.5 text-slate-600">Routine Monitoring</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Audit Trail Log */}
+                <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm text-xs">
+                  <h3 className="font-bold text-base text-slate-900 mb-3 flex items-center gap-2">
+                    <i className="fa-solid fa-list-check text-blue-900"></i>
+                    Point-to-Point Legal Audit Trail Log
+                  </h3>
+                  <div className="space-y-2 text-slate-600 font-mono text-[11px]">
+                    <div className="p-2 bg-slate-50 border-l-2 border-blue-900 flex justify-between">
+                      <span>[2026-10-30 11:20:04 IST] Grievance #AICTE-2026-8941 mapped to Institution ID #1-3489201</span>
+                      <span className="text-slate-400">HASH: e89f2a01</span>
+                    </div>
+                    <div className="p-2 bg-slate-50 border-l-2 border-amber-500 flex justify-between">
+                      <span>[2026-10-30 11:20:05 IST] SBERT AI detected 91.4% similarity between #8941 (Approval) and #7720 (Finance)</span>
+                      <span className="text-slate-400">HASH: 44bc9102</span>
+                    </div>
+                    <div className="p-2 bg-slate-50 border-l-2 border-emerald-500 flex justify-between">
+                      <span>[2026-10-28 15:40:12 IST] Officer #BH-04 dispatched show-cause notice to Delhi Inst. of Tech</span>
+                      <span className="text-slate-400">HASH: 7710aa39</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* RESEARCH & REFERENCES BASE */}
+            {activeRole === 'references' && (
+              <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-6 text-xs">
+                <div className="border-b pb-3">
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i className="fa-solid fa-book-bookmark text-blue-900"></i>
+                    Academic Research & Policy References (Slide 6 Evidence Base)
+                  </h2>
+                  <p className="text-slate-500">Peer-reviewed international literature supporting problem validation, technical stack, and market application.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {RESEARCH_PAPERS.map((paper, idx) => (
+                    <div key={idx} className="p-4 border border-slate-200 rounded-lg hover:border-blue-900 transition space-y-2">
+                      <div className="flex justify-between items-start">
+                        <span className="bg-blue-50 text-blue-900 border border-blue-200 font-bold px-2 py-0.5 rounded text-[10px]">
+                          {paper.category}
+                        </span>
+                        <span className="text-slate-400 font-mono font-bold text-[11px]">{paper.year}</span>
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-xs">{paper.title}</h3>
+                      <p className="text-slate-500 text-[11px]"><strong>Publisher:</strong> {paper.publisher}</p>
+                      <p className="text-slate-700 bg-slate-50 p-2 rounded border border-slate-100 text-[11px]">
+                        <strong>Key Takeaway:</strong> {paper.takeaway}
+                      </p>
+                      <a
+                        href={paper.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-blue-900 hover:underline text-[11px] pt-1"
+                      >
+                        Access Verified Link <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* Footer */}
+          <footer className="bg-slate-900 text-slate-400 text-xs py-6 mt-12 border-t border-slate-800">
+            <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-between items-center gap-4">
+              <div>
+                <p className="font-bold text-white">Smart India Hackathon 2026 - Problem Statement SIH26264</p>
+                <p className="text-slate-500">Integrated Dashboard for Monitoring Complaint Cases Across AICTE Bureaus | Team Nexora</p>
+              </div>
+              <div className="text-right text-slate-500">
+                <p>Designed on Official GoI E-Governance UI Framework</p>
+                <p>Hosted on GitHub Pages</p>
+              </div>
+            </div>
+          </footer>
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
